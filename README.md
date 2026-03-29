@@ -1,0 +1,1 @@
+Implements core model training and optimization workflows, along with Secure Multi-Party Computation (MPC) for privacy-preserving computation on encrypted data.
