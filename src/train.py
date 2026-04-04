@@ -9,6 +9,7 @@ from fl_baseline import evaluate as fl_evaluate
 from fl_baseline import fedavg
 from models import get_model
 from ww_fl import WWFLTrainer
+from ww_fl_crypten import WWFLCrypTenTrainer
 
 
 def save_history(history, save_path):
@@ -87,11 +88,59 @@ def run_wwfl(args, device):
     torch.save(trained_model.state_dict(), os.path.join(args.output_dir, "wwfl_model.pt"))
 
 
+def run_wwfl_crypten(args, device):
+    client_datasets, cluster_map, test_loader = get_wwfl_setup(
+        data_dir=args.data_dir,
+        num_clients=args.num_clients,
+        num_clusters=args.num_clusters,
+        samples_per_client=args.samples_per_client,
+        test_batch_size=args.test_batch_size,
+        num_workers=args.num_workers,
+        seed=args.seed,
+    )
+
+    trainer = WWFLCrypTenTrainer(
+        model_fn=lambda: get_model(args.model),
+        client_datasets=client_datasets,
+        cluster_map=cluster_map,
+        test_loader=test_loader,
+        num_rounds=args.rounds,
+        clients_per_cluster_per_round=args.clients_per_cluster_per_round,
+        local_epochs=args.local_epochs,
+        lr=args.lr,
+        device=device,
+        seed=args.seed,
+        keep_cluster_data_across_rounds=args.keep_cluster_data_across_rounds,
+    )
+
+    trained_model, history = trainer.fit()
+
+    print(f"\nFinal CrypTen WW-FL test loss: {history[-1]['test_loss']:.4f}")
+    print(f"Final CrypTen WW-FL test accuracy: {history[-1]['test_acc']:.4f}")
+
+    save_history(history, os.path.join(args.output_dir, "wwfl_crypten_history.csv"))
+    torch.save(
+        trained_model.state_dict(),
+        os.path.join(args.output_dir, "wwfl_crypten_model.pt"),
+    )
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--mode", type=str, default="wwfl", choices=["fl", "wwfl"])
-    parser.add_argument("--model", type=str, default="resnet9", choices=["resnet9", "lenet"])
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="wwfl",
+        choices=["fl", "wwfl", "wwfl_crypten"],
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="resnet9",
+        choices=["resnet9", "lenet"],
+    )
+
     parser.add_argument("--data-dir", type=str, default="./data")
     parser.add_argument("--output-dir", type=str, default="./outputs")
 
@@ -110,6 +159,12 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", type=str, default="cuda")
 
+    parser.add_argument(
+        "--keep-cluster-data-across-rounds",
+        action="store_true",
+        help="Only relevant for wwfl_crypten. If used, each cluster keeps accumulating old selected client data.",
+    )
+
     return parser.parse_args()
 
 
@@ -125,8 +180,10 @@ def main():
 
     if args.mode == "fl":
         run_fl(args, device)
-    else:
+    elif args.mode == "wwfl":
         run_wwfl(args, device)
+    else:
+        run_wwfl_crypten(args, device)
 
 
 if __name__ == "__main__":
