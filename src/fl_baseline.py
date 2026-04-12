@@ -34,8 +34,12 @@ def local_train(model, dataloader, epochs, lr=0.01, device="cuda"):
     avg_loss = total_loss / total_seen if total_seen > 0 else 0.0
     avg_acc = total_correct / total_seen if total_seen > 0 else 0.0
 
-    return copy.deepcopy(model.state_dict()), avg_loss, avg_acc, total_seen
+    # move model to CPU before deepcopy
+    # this frees GPU memory immediately
+    model = model.cpu()
+    weights = copy.deepcopy(model.state_dict())
 
+    return weights, avg_loss, avg_acc, total_seen
 
 def average_weights(weights_list, data_sizes):
     avg_weights = copy.deepcopy(weights_list[0])
@@ -63,7 +67,9 @@ def fedavg(global_model, client_loaders, num_rounds, local_epochs, lr, device):
         round_accs = []
 
         for loader in client_loaders:
-            local_model = copy.deepcopy(global_model)
+            # deepcopy on CPU then move to GPU
+            local_model = copy.deepcopy(global_model.cpu())
+            local_model = local_model.to(device)
 
             weights, train_loss, train_acc, num_samples = local_train(
                 local_model,
@@ -78,6 +84,12 @@ def fedavg(global_model, client_loaders, num_rounds, local_epochs, lr, device):
             round_losses.append(train_loss)
             round_accs.append(train_acc)
 
+            del local_model
+            torch.cuda.empty_cache()
+
+        # move global back to GPU after loop
+        global_model = global_model.to(device)
+
         new_weights = average_weights(local_weights, data_sizes)
         global_model.load_state_dict(new_weights)
 
@@ -88,7 +100,6 @@ def fedavg(global_model, client_loaders, num_rounds, local_epochs, lr, device):
         })
 
     return global_model, history
-
 
 def evaluate(model, dataloader, device="cpu"):
     model.eval()

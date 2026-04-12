@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class LeNet(nn.Module):
-    def __init__(self, in_channels=3, num_classes=10):
+    def __init__(self, in_channels=1, num_classes=10):
         super().__init__()
         self.conv1 = nn.Conv2d(in_channels, 6, kernel_size=5)
         self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
@@ -77,6 +77,6 @@ def get_model(model_name="resnet9"):
     if model_name == "resnet9":
         return ResNet9()
     if model_name == "lenet":
-        return LeNet(in_channels=3)
+        return LeNet(in_channels=1)
 
     raise ValueError(f"Unsupported model: {model_name}")

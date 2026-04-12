@@ -5,6 +5,33 @@ from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision import datasets, transforms
 
 
+def get_mnist_datasets(data_dir="./data"):
+    transform = transforms.Compose([
+        transforms.Resize((32, 32)),
+        transforms.ToTensor(),
+        transforms.Normalize(
+            (0.1307,),
+            (0.3081,)
+        ),
+    ])
+
+    train_dataset = datasets.MNIST(
+        root=data_dir,
+        train=True,
+        download=True,
+        transform=transform,
+    )
+
+    test_dataset = datasets.MNIST(
+        root=data_dir,
+        train=False,
+        download=True,
+        transform=transform,
+    )
+
+    return train_dataset, test_dataset
+
+
 def get_cifar10_datasets(data_dir="./data"):
     train_transform = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
@@ -41,6 +68,18 @@ def get_cifar10_datasets(data_dir="./data"):
     return train_dataset, test_dataset
 
 
+def get_datasets(dataset_name, data_dir="./data"):
+    if dataset_name == "mnist":
+        return get_mnist_datasets(data_dir)
+    elif dataset_name == "cifar10":
+        return get_cifar10_datasets(data_dir)
+    else:
+        raise ValueError(
+            f"Unknown dataset: {dataset_name}. "
+            f"Choose mnist or cifar10"
+        )
+
+
 def split_dataset_into_clients(
     dataset: Dataset,
     num_clients: int,
@@ -52,7 +91,10 @@ def split_dataset_into_clients(
     client_datasets: Dict[int, Dataset] = {}
 
     for client_id in range(num_clients):
-        indices = [random.randrange(total_samples) for _ in range(samples_per_client)]
+        indices = [
+            random.randrange(total_samples)
+            for _ in range(samples_per_client)
+        ]
         client_datasets[client_id] = Subset(dataset, indices)
 
     return client_datasets
@@ -60,7 +102,9 @@ def split_dataset_into_clients(
 
 def build_cluster_map(num_clients: int, num_clusters: int):
     if num_clients % num_clusters != 0:
-        raise ValueError("num_clients must be divisible by num_clusters")
+        raise ValueError(
+            "num_clients must be divisible by num_clusters"
+        )
 
     clients_per_cluster = num_clients // num_clusters
     cluster_map: Dict[int, List[int]] = {}
@@ -113,14 +157,17 @@ def make_test_loader(
 
 def get_fl_setup(
     data_dir="./data",
+    dataset="cifar10",
     num_clients=1000,
     samples_per_client=200,
-    batch_size=64,
+    batch_size=8,
     test_batch_size=256,
     num_workers=2,
     seed=42,
 ):
-    train_dataset, test_dataset = get_cifar10_datasets(data_dir)
+    train_dataset, test_dataset = get_datasets(
+        dataset, data_dir
+    )
 
     client_datasets = split_dataset_into_clients(
         dataset=train_dataset,
@@ -149,6 +196,7 @@ def get_fl_setup(
 
 def get_wwfl_setup(
     data_dir="./data",
+    dataset="cifar10",
     num_clients=1000,
     num_clusters=10,
     samples_per_client=200,
@@ -156,7 +204,9 @@ def get_wwfl_setup(
     num_workers=2,
     seed=42,
 ):
-    train_dataset, test_dataset = get_cifar10_datasets(data_dir)
+    train_dataset, test_dataset = get_datasets(
+        dataset, data_dir
+    )
 
     client_datasets = split_dataset_into_clients(
         dataset=train_dataset,
